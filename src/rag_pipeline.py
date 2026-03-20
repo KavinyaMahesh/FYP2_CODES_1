@@ -1,45 +1,65 @@
 import os
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.llms import Ollama
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_community.llms import Ollama
 from langchain.prompts import PromptTemplate
+
 
 # Project root
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+VECTOR_DB_PATH = os.path.join(BASE_DIR, "vector_db")
+
 
 # Embedding model
 embedding_model = HuggingFaceEmbeddings(
     model_name="all-MiniLM-L6-v2"
 )
 
-# Load vector DB
+
+# Load vector database
 vector_db = Chroma(
-    persist_directory=os.path.join(BASE_DIR, "vector_db"),
+    persist_directory=VECTOR_DB_PATH,
     embedding_function=embedding_model
 )
 
-# LLM
+
+# LLM (lightweight model for low RAM systems)
 llm = Ollama(model="gemma:2b")
+
 
 # Prompt Template
 prompt_template = """
-You are a medical assistant specialized in respiratory diseases.
+You are a medical assistant.
 
-Use the context below to answer the user's symptoms.
+The knowledge base contains medical information about multiple disease categories including:
+
+- Respiratory diseases
+- Cardiovascular diseases
+- Gastrointestinal diseases
+- Infectious diseases
+
+Use ONLY the information provided in the context.
 
 Context:
 {context}
 
-User Symptoms:
+User symptoms:
 {question}
 
-Based on the information:
-1. Suggest the most likely respiratory disease
-2. Explain why
-3. Mention important symptoms
+Instructions:
 
-Answer clearly.
+1. Identify the most likely disease from the context
+2. Use the disease category given in the context
+3. Explain why the symptoms match the disease
+
+Answer format:
+
+Disease:
+Category:
+Explanation:
 """
+
 
 prompt = PromptTemplate(
     template=prompt_template,
@@ -47,13 +67,34 @@ prompt = PromptTemplate(
 )
 
 
+# -----------------------------
+# Retrieve relevant documents
+# -----------------------------
 def retrieve_context(query):
+
     results = vector_db.similarity_search(query, k=4)
 
-    context = "\n\n".join([doc.page_content for doc in results])
+    context = ""
+
+    for doc in results:
+
+        context += f"""
+Category: {doc.metadata['category']}
+Disease: {doc.metadata['disease']}
+Source: {doc.metadata['source']}
+
+Content:
+{doc.page_content}
+
+---
+"""
+
     return context
 
 
+# -----------------------------
+# RAG Query
+# -----------------------------
 def rag_query(question):
 
     context = retrieve_context(question)
@@ -68,9 +109,12 @@ def rag_query(question):
     return response
 
 
+# -----------------------------
+# CLI Interface
+# -----------------------------
 def main():
 
-    print("\n🫁 Respiratory Disease Assistant\n")
+    print("\n🧠 Medical Diagnosis Assistant\n")
 
     while True:
 
@@ -81,7 +125,7 @@ def main():
 
         answer = rag_query(query)
 
-        print("\n🧠 Diagnosis Suggestion:\n")
+        print("\n🔎 Diagnosis Suggestion:\n")
         print(answer)
         print("\n" + "="*60 + "\n")
 

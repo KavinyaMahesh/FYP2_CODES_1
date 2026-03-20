@@ -1,16 +1,16 @@
 import os
-import fitz  # PyMuPDF
+import fitz
 import json
 import re
 from tqdm import tqdm
 
-import os
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-BASE_PATH = os.path.join(BASE_DIR, "data", "KB_phase2_drive")
+# New dataset root
+BASE_PATH = os.path.join(BASE_DIR, "data", "KB_phase2")
 
-output_path = os.path.join(BASE_DIR, "processed_data.json")
+OUTPUT_PATH = os.path.join(BASE_DIR, "processed_data.json")
+
 
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -32,41 +32,59 @@ def clean_text(text):
 
 
 def load_data(base_path):
+
     dataset = []
 
-    for disease in os.listdir(base_path):
-        disease_path = os.path.join(base_path, disease)
+    for category in os.listdir(base_path):
 
-        if not os.path.isdir(disease_path):
+        category_path = os.path.join(base_path, category)
+
+        if not os.path.isdir(category_path):
             continue
 
-        print(f"\nProcessing: {disease}")
+        print(f"\nCATEGORY: {category}")
 
-        for file in tqdm(os.listdir(disease_path)):
-            if file.endswith(".pdf"):
-                pdf_path = os.path.join(disease_path, file)
+        for disease in os.listdir(category_path):
 
-                text = extract_text_from_pdf(pdf_path)
+            disease_path = os.path.join(category_path, disease)
 
-                if text.strip():
-                    dataset.append({
-                        "disease": disease,
-                        "file_name": file,
-                        "content": clean_text(text)
-                    })
+            if not os.path.isdir(disease_path):
+                continue
+
+            print(f"  Disease: {disease}")
+
+            files = os.listdir(disease_path)
+
+            for file in tqdm(files):
+
+                if file.endswith(".pdf"):
+
+                    pdf_path = os.path.join(disease_path, file)
+
+                    text = extract_text_from_pdf(pdf_path)
+
+                    if text.strip():
+
+                        dataset.append({
+                            "category": category,
+                            "disease": disease,
+                            "file_name": file,
+                            "content": clean_text(text)
+                        })
 
     return dataset
 
 
 def main():
+
     data = load_data(BASE_PATH)
 
-    print(f"\nTotal docs: {len(data)}")
+    print(f"\nTotal documents processed: {len(data)}")
 
-    with open(output_path, "w", encoding="utf-8") as f:
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    print("Saved processed_data.json")
+    print("processed_data.json created successfully")
 
 
 if __name__ == "__main__":

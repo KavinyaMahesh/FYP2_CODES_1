@@ -1,31 +1,34 @@
 import json
+import os
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-
-
-import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+DATA_PATH = os.path.join(BASE_DIR, "processed_data.json")
+VECTOR_DB_PATH = os.path.join(BASE_DIR, "vector_db")
 
-# Load data
-with open(os.path.join(BASE_DIR, "processed_data.json"), "r", encoding="utf-8") as f:
+# Load processed data
+with open(DATA_PATH, "r", encoding="utf-8") as f:
     data = json.load(f)
 
-# Convert to documents
 documents = []
+
 for item in data:
     documents.append(
         Document(
             page_content=item["content"],
             metadata={
+                "category": item["category"],
                 "disease": item["disease"],
                 "source": item["file_name"]
             }
         )
     )
+
+print("Documents loaded:", len(documents))
 
 # Chunking
 text_splitter = RecursiveCharacterTextSplitter(
@@ -35,20 +38,31 @@ text_splitter = RecursiveCharacterTextSplitter(
 
 chunks = text_splitter.split_documents(documents)
 
-print(f"Chunks created: {len(chunks)}")
+print("Chunks created:", len(chunks))
 
-# Embeddings
+# Embedding model
 embedding_model = HuggingFaceEmbeddings(
     model_name="all-MiniLM-L6-v2"
 )
 
-# Vector DB
-vector_db = Chroma.from_documents(
-    documents=chunks,
-    embedding=embedding_model,
-    persist_directory=os.path.join(BASE_DIR, "vector_db")
+# Create empty DB
+vector_db = Chroma(
+    persist_directory=VECTOR_DB_PATH,
+    embedding_function=embedding_model
 )
 
+# Insert chunks in batches
+BATCH_SIZE = 1000
+
+for i in range(0, len(chunks), BATCH_SIZE):
+
+    batch = chunks[i:i+BATCH_SIZE]
+
+    vector_db.add_documents(batch)
+
+    print(f"Inserted batch {i} → {i + len(batch)}")
+
+# Persist database
 vector_db.persist()
 
-print("Vector DB created successfully!")
+print("Vector database created successfully!")
